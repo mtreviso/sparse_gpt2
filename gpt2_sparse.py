@@ -9,21 +9,25 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 
 
 class SparseGPT2LMHeadModel(GPT2LMHeadModel):
-    def __init__(self, config, alpha=1.0, save_qk=True):
+    def __init__(self, config, alpha=1.0, save_qk=True, reinit_weights=False):
         super().__init__(config)
         print('Using SparseGPT2LMHeadModel with: alpha={}, save_qk={}'.format(alpha, save_qk))
         for i, layer in enumerate(self.transformer.h):
             layer.attn = SparseGPT2Attention(config, alpha=alpha, save_qk=save_qk)
-        self.init_weights()  # reinit weights (important if we want to train from scratch)
+        # reinit weights (important if we want to train from scratch)
+        if reinit_weights:
+            self.init_weights()
 
 
 class SparseGPT2Model(GPT2Model):
-    def __init__(self, config, alpha=1.5, save_qk=False):
+    def __init__(self, config, alpha=1.5, save_qk=False, reinit_weights=False):
         super().__init__(config)
         print('Using SparseGPT2Model with: alpha={}, save_qk={}'.format(alpha, save_qk))
         for i, layer in enumerate(self.h):
             layer.attn = SparseGPT2Attention(config, alpha=alpha, save_qk=save_qk)
-        self.init_weights()  # reinit weights (important if we want to train from scratch)
+        # reinit weights (important if we want to train from scratch)
+        if reinit_weights:
+            self.init_weights()
 
 
 class SparseGPT2Attention(GPT2Attention):
@@ -45,8 +49,8 @@ class SparseGPT2Attention(GPT2Attention):
     def _attn(self, query, key, value, attention_mask=None, head_mask=None):
         # EDITED: save q, k vectors
         if self.save_qk:
-            self.q_vectors = query
-            self.k_vectors = key
+            self.q_vectors = query.detach().cpu()
+            self.k_vectors = key.detach().cpu()
 
         attn_weights = torch.matmul(query, key.transpose(-1, -2))
 
